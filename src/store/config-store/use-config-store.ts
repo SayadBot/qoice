@@ -58,17 +58,15 @@ useConfigStore.subscribe((state) => {
     .then(async () => {
       console.log('writing config', state)
 
-      await writeUserConfig({
-        settings: state.settings,
-      })
+      await writeUserConfig({ settings: state.settings })
 
-      const nextHotkey = state.settings.hotkey
-      if (previousHotkey !== nextHotkey) {
+      if (previousHotkey !== state.settings.hotkey) {
         await invoke('sync_hotkey_command', {
           previousHotkey: previousHotkey,
-          nextHotkey: nextHotkey,
+          nextHotkey: state.settings.hotkey,
         })
-        previousHotkey = nextHotkey
+
+        previousHotkey = state.settings.hotkey
       }
     })
     .catch((error) => {
