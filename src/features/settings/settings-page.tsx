@@ -23,7 +23,11 @@ import { LANGUAGES } from '@/constants/languages'
 import { settingsSchema } from '@/store/config-store'
 import { useConfigStore } from '@/store/config-store/use-config-store'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { ViewIcon, ViewOffIcon } from '@hugeicons/core-free-icons'
+import {
+  AiBeautifyIcon,
+  ViewIcon,
+  ViewOffIcon,
+} from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
@@ -82,11 +86,11 @@ export function SettingsPage() {
                 <FormItem>
                   <FormLabel>Language</FormLabel>
                   <Select
+                    value={field.value}
                     onValueChange={(value) => {
                       field.onChange(value)
                       triggerSubmit()
                     }}
-                    defaultValue={field.value}
                   >
                     <FormControl>
                       <SelectTrigger className="h-11! w-full">
@@ -99,6 +103,19 @@ export function SettingsPage() {
                           key={languageOption.code}
                           value={languageOption.code}
                         >
+                          {languageOption.country ? (
+                            <img
+                              className="h-3.5 w-4 object-contain"
+                              src={`https://flagcdn.com/${languageOption.country}.svg`}
+                              alt={languageOption.name}
+                            />
+                          ) : (
+                            <HugeiconsIcon
+                              className="size-4"
+                              icon={AiBeautifyIcon}
+                            />
+                          )}
+
                           {languageOption.name}
                         </SelectItem>
                       ))}

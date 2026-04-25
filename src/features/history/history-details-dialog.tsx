@@ -4,6 +4,12 @@ import {
   BetterDialogContent,
 } from '@/components/ui/better-dialog'
 import { GROQ_MODELS } from '@/constants/models'
+import {
+  CheckmarkCircle01Icon,
+  CancelCircleIcon,
+  TimeScheduleIcon,
+} from '@hugeicons/core-free-icons'
+import { HugeiconsIcon } from '@hugeicons/react'
 import { format } from 'date-fns'
 import { HistoryRecord } from './types.t'
 
@@ -51,6 +57,12 @@ function formatTimestamp(value: number | string | null | undefined): string {
   return format(new Date(ms), 'MMM d, h:mm:ss a')
 }
 
+function formatShortTime(value: number | string | null | undefined): string {
+  const ms = toMs(value)
+  if (ms == null) return '-'
+  return format(new Date(ms), 'h:mm:ss a')
+}
+
 function formatText(value: string | null | undefined): string {
   if (value == null) return '-'
   const trimmed = value.trim()
@@ -81,33 +93,64 @@ function getBadgeVariant(
 function DetailField({
   label,
   value,
-  mono,
 }: {
   label: string
   value: string
-  mono?: boolean
 }) {
   return (
-    <div className="space-y-1">
-      <p className="text-muted-foreground text-[11px] font-medium tracking-[0.12em] uppercase">
+    <div>
+      <p className="text-muted-foreground text-[10px] font-medium tracking-wider uppercase">
         {label}
       </p>
-      <p className={mono ? 'font-mono text-sm break-all' : 'text-sm'}>
-        {value}
-      </p>
+      <p className="mt-0.5 text-sm font-medium">{value}</p>
     </div>
   )
 }
 
-function OutputBlock({ title, value }: { title: string; value: string }) {
+function Timeline({ steps }: { steps: TimelineStep[] }) {
   return (
-    <div className="space-y-2.5">
-      <div className="flex items-center justify-between gap-3">
-        <h4 className="text-sm font-medium tracking-tight">{title}</h4>
-        {value === '-' && <Badge variant="outline">Empty</Badge>}
-      </div>
-      <div className="bg-muted/40 min-h-28 rounded-xl border px-4 py-3 text-sm break-words whitespace-pre-wrap">
-        {value}
+    <div className="relative">
+      <div className="absolute top-2 bottom-2 left-[5px] w-px bg-border" />
+      <div className="space-y-0">
+        {steps.map((step) => {
+          const start = toMs(step.start)
+          const end = toMs(step.end)
+          const duration = getStepDuration(start, end)
+          const state = getStepState(start, end)
+
+          return (
+            <div key={step.key} className="relative flex gap-3 py-2">
+              <div className="relative z-10 mt-1.5 flex shrink-0">
+                {state === 'Completed' && (
+                  <HugeiconsIcon
+                    icon={CheckmarkCircle01Icon}
+                    className="size-3 text-muted-foreground"
+                  />
+                )}
+                {state === 'Running' && (
+                  <HugeiconsIcon
+                    icon={TimeScheduleIcon}
+                    className="size-3 text-primary animate-pulse"
+                  />
+                )}
+                {state === 'Not started' && (
+                  <div className="size-3 rounded-full border border-muted-foreground/40" />
+                )}
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="text-sm font-medium">{step.label}</span>
+                  <span className="text-muted-foreground shrink-0 text-xs">
+                    {formatDuration(duration)}
+                  </span>
+                </div>
+                <p className="text-muted-foreground mt-0.5 text-xs">
+                  {formatShortTime(step.start)} – {formatShortTime(step.end)}
+                </p>
+              </div>
+            </div>
+          )
+        })}
       </div>
     </div>
   )
@@ -150,6 +193,9 @@ function HistoryDetailsDialogContent({ record }: { record: HistoryRecord }) {
   const transcriptionOutput = formatText(record.transcription_output)
   const transcriptionError = formatText(record.transcription_error)
   const recordStatus = getRecordStatus(record)
+  const modelName =
+    GROQ_MODELS.find((m) => m.id === record.transcription_model)?.name ??
+    record.transcription_model
 
   return (
     <BetterDialogContent
@@ -162,82 +208,62 @@ function HistoryDetailsDialogContent({ record }: { record: HistoryRecord }) {
           <Badge variant="outline">{formatText(record.language)}</Badge>
         </div>
 
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_18rem]">
+        <div className="grid gap-5 lg:grid-cols-[1fr_16rem]">
           <div className="space-y-4">
             {transcriptionError !== '-' && (
-              <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-950 dark:bg-red-950/30 dark:text-red-300">
-                {transcriptionError}
+              <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700 dark:border-red-950 dark:bg-red-950/30 dark:text-red-300">
+                <HugeiconsIcon
+                  icon={CancelCircleIcon}
+                  className="mt-0.5 size-4 shrink-0"
+                />
+                <span className="break-words">{transcriptionError}</span>
               </div>
             )}
 
-            <OutputBlock
-              title="Transcription Output"
-              value={transcriptionOutput}
-            />
-          </div>
-
-          <div className="space-y-4 xl:sticky xl:top-0 xl:self-start">
-            <div className="rounded-xl border px-4 py-3">
-              <div className="grid gap-x-5 gap-y-3 sm:grid-cols-2 xl:grid-cols-1">
-                <DetailField
-                  label="Total duration"
-                  value={formatDuration(
-                    getStepDuration(
-                      toMs(record.started_at),
-                      toMs(record.completed_at)
-                    )
-                  )}
-                />
-                <DetailField
-                  label="Started"
-                  value={formatTimestamp(record.started_at)}
-                />
-                <DetailField
-                  label="Completed"
-                  value={formatTimestamp(record.completed_at)}
-                />
-                <DetailField
-                  label="Transcription model"
-                  value={formatText(
-                    GROQ_MODELS.find((m) => m.id === record.transcription_model)
-                      ?.name ?? record.transcription_model
-                  )}
-                />
-                <DetailField
-                  label="Input audio"
-                  value={formatText(record.input_audio)}
-                  mono
-                />
+            <div>
+              <div className="mb-1.5 flex items-center justify-between">
+                <h4 className="text-sm font-medium">Transcription Output</h4>
+                {transcriptionOutput === '-' && (
+                  <Badge variant="outline" className="text-[10px]">
+                    Empty
+                  </Badge>
+                )}
+              </div>
+              <div className="bg-muted/40 max-h-64 overflow-auto rounded-lg border px-3.5 py-3 text-sm break-words whitespace-pre-wrap">
+                {transcriptionOutput}
               </div>
             </div>
+          </div>
 
-            <div className="space-y-2 rounded-xl border px-4 py-3">
-              {timelineSteps.map((step) => {
-                const start = toMs(step.start)
-                const end = toMs(step.end)
-                const state = getStepState(start, end)
+          <div className="space-y-5">
+            <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+              <DetailField
+                label="Duration"
+                value={formatDuration(
+                  getStepDuration(
+                    toMs(record.started_at),
+                    toMs(record.completed_at)
+                  )
+                )}
+              />
+              <DetailField
+                label="Started"
+                value={formatTimestamp(record.started_at)}
+              />
+              <DetailField
+                label="Completed"
+                value={formatTimestamp(record.completed_at)}
+              />
+              <DetailField label="Model" value={formatText(modelName)} />
+              <DetailField
+                label="Input"
+                value={formatText(record.input_audio)}
+              />
+            </div>
 
-                return (
-                  <div
-                    key={step.key}
-                    className="bg-muted/20 rounded-lg px-3 py-2.5"
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-sm font-medium">{step.label}</span>
-                      <span className="text-muted-foreground text-xs">
-                        {formatDuration(getStepDuration(start, end))}
-                      </span>
-                    </div>
-                    <div className="mt-1 flex items-center justify-between gap-2 text-xs">
-                      <Badge variant={getBadgeVariant(state)}>{state}</Badge>
-                      <span className="text-muted-foreground">
-                        {formatTimestamp(step.start)} -{' '}
-                        {formatTimestamp(step.end)}
-                      </span>
-                    </div>
-                  </div>
-                )
-              })}
+            <div>
+              <h4 className="mb-2 text-sm font-medium">Timeline</h4>
+              <Timeline steps={timelineSteps} />
             </div>
           </div>
         </div>
@@ -255,7 +281,7 @@ export function HistoryDetailsDialog({
     <BetterDialog
       open={open}
       onOpenChange={onOpenChange}
-      className="sm:[--width:42rem]"
+      className="sm:[--width:48rem]"
     >
       <HistoryDetailsDialogContent record={record} />
     </BetterDialog>
