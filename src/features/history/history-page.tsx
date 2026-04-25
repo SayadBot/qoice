@@ -74,7 +74,7 @@ export function HistoryPage() {
     getPaginationRowModel: getPaginationRowModel(),
     initialState: {
       pagination: {
-        pageSize: 100,
+        pageSize: 50,
       },
     },
   })

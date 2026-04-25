@@ -1,11 +1,20 @@
+import { useCallback, useEffect, useRef, useState } from 'react'
+import type { ReactNode } from 'react'
 import {
   BetterDialog,
   BetterDialogContent,
 } from '@/components/ui/better-dialog'
 import { GROQ_MODELS } from '@/constants/models'
+import { LANGUAGES } from '@/constants/languages'
+import { readFile, BaseDirectory } from '@tauri-apps/plugin-fs'
+import { revealItemInDir } from '@tauri-apps/plugin-opener'
+import { appDataDir, resolve } from '@tauri-apps/api/path'
 import {
   CancelCircleIcon,
   CheckmarkCircle01Icon,
+  FolderOpenIcon,
+  PauseIcon,
+  PlayIcon,
   TimeScheduleIcon,
 } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
@@ -81,13 +90,102 @@ function getRecordStatus(record: HistoryRecord): string {
   return 'Pending'
 }
 
-function DetailField({ label, value }: { label: string; value: string }) {
+function DetailField({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div>
       <p className="text-muted-foreground text-[10px] font-medium tracking-wider uppercase">
         {label}
       </p>
-      <p className="mt-0.5 text-sm font-medium">{value}</p>
+      <div className="mt-0.5 text-sm font-medium">{value}</div>
+    </div>
+  )
+}
+
+function AudioPlayer({ filename }: { filename: string }) {
+  const [playing, setPlaying] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const audioRef = useRef<HTMLAudioElement | null>(null)
+  const urlRef = useRef<string | null>(null)
+
+  const toggle = useCallback(async () => {
+    if (audioRef.current) {
+      if (audioRef.current.paused) {
+        await audioRef.current.play()
+        setPlaying(true)
+      } else {
+        audioRef.current.pause()
+        setPlaying(false)
+      }
+      return
+    }
+
+    setLoading(true)
+    try {
+      const data = await readFile(`audio/${filename}`, {
+        baseDir: BaseDirectory.AppData,
+      })
+      const blob = new Blob([data], { type: 'audio/wav' })
+      const url = URL.createObjectURL(blob)
+      urlRef.current = url
+
+      const audio = new Audio(url)
+      audio.onended = () => setPlaying(false)
+      audio.onpause = () => setPlaying(false)
+      audio.onplay = () => setPlaying(true)
+      audioRef.current = audio
+      await audio.play()
+    } catch (e) {
+      console.error('Failed to load audio:', e)
+    } finally {
+      setLoading(false)
+    }
+  }, [filename])
+
+  const handleOpen = useCallback(async () => {
+    try {
+      const dir = await appDataDir()
+      const path = await resolve(dir, 'audio', filename)
+      await revealItemInDir(path)
+    } catch (e) {
+      console.error('Failed to reveal file:', e)
+    }
+  }, [filename])
+
+  useEffect(() => {
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.pause()
+        audioRef.current = null
+      }
+      if (urlRef.current) {
+        URL.revokeObjectURL(urlRef.current)
+        urlRef.current = null
+      }
+    }
+  }, [])
+
+  return (
+    <div className="flex items-center gap-3 rounded-lg border px-3.5 py-2.5">
+      <button
+        onClick={toggle}
+        disabled={loading}
+        className="bg-muted hover:bg-muted/80 flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-md transition-colors disabled:opacity-50"
+      >
+        <HugeiconsIcon
+          icon={playing ? PauseIcon : PlayIcon}
+          className="size-4"
+        />
+      </button>
+      <span className="text-muted-foreground min-w-0 flex-1 truncate text-xs">
+        {filename}
+      </span>
+      <button
+        onClick={handleOpen}
+        title="Open in file explorer"
+        className="text-muted-foreground hover:text-foreground flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-md transition-colors"
+      >
+        <HugeiconsIcon icon={FolderOpenIcon} className="size-4" />
+      </button>
     </div>
   )
 }
@@ -182,12 +280,15 @@ function HistoryDetailsDialogContent({ record }: { record: HistoryRecord }) {
     GROQ_MODELS.find((m) => m.id === record.transcription_model)?.name ??
     record.transcription_model
 
+  const lang = LANGUAGES.find((l) => l.code === record.language)
+
   return (
     <BetterDialogContent
       title="Transcription Details"
       description={<>Recorded at {formatTimestamp(record.completed_at)}</>}
     >
       <div className="space-y-5">
+        {/* Row 1: Output */}
         <div>
           <div className="mb-1.5 flex items-center justify-between">
             <h4 className="text-sm font-medium">Transcription Output</h4>
@@ -210,9 +311,26 @@ function HistoryDetailsDialogContent({ record }: { record: HistoryRecord }) {
           )}
         </div>
 
+        {/* Row 2: Input Audio */}
+        <div>
+          <h4 className="mb-1.5 text-sm font-medium">Input Audio</h4>
+          <AudioPlayer filename={record.input_audio} />
+        </div>
+
+        {/* Row 3: Data */}
         <div className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3">
           <DetailField label="Status" value={recordStatus} />
-          <DetailField label="Language" value={formatText(record.language)} />
+          <DetailField
+            label="Language"
+            value={
+              <span className="inline-flex items-center gap-1.5">
+                {lang?.country ? (
+                  <span className={`fi fi-${lang.country} text-[0.8rem]`} />
+                ) : null}
+                <span>{formatText(record.language)}</span>
+              </span>
+            }
+          />
           <DetailField
             label="Duration"
             value={formatDuration(
@@ -231,9 +349,9 @@ function HistoryDetailsDialogContent({ record }: { record: HistoryRecord }) {
             value={formatTimestamp(record.completed_at)}
           />
           <DetailField label="Model" value={formatText(modelName)} />
-          <DetailField label="Input" value={formatText(record.input_audio)} />
         </div>
 
+        {/* Row 4: Timeline */}
         <div>
           <h4 className="mb-2 text-sm font-medium">Timeline</h4>
           <Timeline steps={timelineSteps} />
