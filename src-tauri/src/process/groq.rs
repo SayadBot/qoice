@@ -87,8 +87,7 @@ async fn transcribe_with_groq(
 
   if !response.status().is_success() {
     let status = response.status();
-    let body = response.text().await.unwrap_or_default();
-    return Err(format!("API error {}: {}", status, body));
+    return Err(format!("API error: {}", status));
   }
 
   let json: serde_json::Value = response
