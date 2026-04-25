@@ -30,19 +30,21 @@ export const useConfigStore = create(
     },
 
     updateSettings(updates: Partial<TSettingsSchema>) {
-      return set((prev) => ({
-        settings: { ...prev.settings, ...updates },
-      }))
-    },
+      return set((prev) => {
+        const next = {
+          settings: { ...prev.settings, ...updates },
+        }
 
-    async setAutostartEnabled(enabled: boolean) {
-      if (enabled) {
-        await autoStart.enable()
-      } else {
-        await autoStart.disable()
-      }
+        if (prev.settings.startOnLogin !== next.settings.startOnLogin) {
+          if (next.settings.startOnLogin) {
+            void autoStart.enable()
+          } else {
+            void autoStart.disable()
+          }
+        }
 
-      return set({ autostartEnabled: enabled })
+        return next
+      })
     },
   }))
 )
