@@ -12,7 +12,6 @@ type InitialState = {
 
 async function getInitialState(): Promise<InitialState> {
   const userConfig = await readUserConfig()
-
   const resolvedSettings = userConfig?.settings ?? settingsSchema.parse({})
 
   return {
