@@ -17,7 +17,7 @@ use crate::{
   state::{AppState, RecordingSession},
 };
 
-const MIN_RECORDING_MS: i64 = 200;
+const MIN_RECORDING_MS: i64 = 250;
 
 fn now_ms() -> i64 {
   SystemTime::now()
