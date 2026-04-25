@@ -7,7 +7,6 @@ import { settingsSchema, TSettingsSchema } from './config-schema'
 
 type InitialState = {
   settings: TSettingsSchema
-  autostartEnabled: boolean
 }
 
 async function getInitialState(): Promise<InitialState> {
@@ -15,8 +14,10 @@ async function getInitialState(): Promise<InitialState> {
   const resolvedSettings = userConfig?.settings ?? settingsSchema.parse({})
 
   return {
-    settings: resolvedSettings,
-    autostartEnabled: await autoStart.isEnabled(),
+    settings: {
+      ...resolvedSettings,
+      startOnLogin: await autoStart.isEnabled(),
+    },
   }
 }
 
