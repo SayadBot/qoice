@@ -5,7 +5,7 @@ use std::sync::Arc;
 use tauri::{
   menu::{Menu, MenuItem},
   tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-  AppHandle, Manager, Runtime,
+  AppHandle, Manager, Runtime, WebviewUrl, WebviewWindowBuilder,
 };
 
 use crate::state::AppState;
@@ -29,10 +29,7 @@ pub fn create_tray<R: Runtime>(app: &AppHandle<R>, _state: Arc<AppState>) -> tau
   let _ = builder
     .on_menu_event(move |app, event| match event.id.as_ref() {
       "show" => {
-        if let Some(window) = app.get_webview_window("main") {
-          let _ = window.show();
-          let _ = window.set_focus();
-        }
+        show_main_window(app);
       }
       "hide" => {
         if let Some(window) = app.get_webview_window("main") {
@@ -52,14 +49,32 @@ pub fn create_tray<R: Runtime>(app: &AppHandle<R>, _state: Arc<AppState>) -> tau
       } = event
       {
         let app = tray.app_handle();
-        if let Some(window) = app.get_webview_window("main") {
-          let _ = window.unminimize();
-          let _ = window.show();
-          let _ = window.set_focus();
-        }
+        show_main_window(app);
       }
     })
     .build(app);
 
   Ok(())
+}
+
+fn show_main_window<R: Runtime>(app: &AppHandle<R>) {
+  if let Some(window) = app.get_webview_window("main") {
+    let _ = window.unminimize();
+    let _ = window.show();
+    let _ = window.set_focus();
+    return;
+  }
+
+  if let Ok(window) = WebviewWindowBuilder::new(app, "main", WebviewUrl::App("index.html".into()))
+    .title("Woice")
+    .decorations(false)
+    .inner_size(1024.0, 768.0)
+    .min_inner_size(720.0, 640.0)
+    .shadow(true)
+    .theme(Some(tauri::Theme::Dark))
+    .visible(true)
+    .build()
+  {
+    let _ = window.set_focus();
+  }
 }
