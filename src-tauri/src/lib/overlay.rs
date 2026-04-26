@@ -42,7 +42,6 @@ pub fn ensure_overlay_window<R: Runtime>(app: &AppHandle<R>) -> Result<(), Strin
       .skip_taskbar(true)
       .visible(false)
       .shadow(false)
-      .transparent(true)
       .build()
       .map_err(|e: tauri::Error| e.to_string())?;
 
