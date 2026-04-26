@@ -239,7 +239,7 @@ mod macos {
   use accessibility::{AXAttribute, AXUIElement};
   use accessibility_sys::{
     kAXFocusedUIElementAttribute, kAXValueTypeCFRange, AXValueCreate, AXValueGetType,
-    AXValueGetTypeID, AXValueGetValue,
+    AXValueGetValue,
   };
   use core_foundation::{
     base::{CFType, TCFType},
@@ -253,13 +253,15 @@ mod macos {
       .set_messaging_timeout(1.5)
       .map_err(|e| format!("Accessibility timeout setup failed: {e}"))?;
 
-    let focused = system
-      .attribute(&AXAttribute::<AXUIElement>::new(
-        &CFString::from_static_string(kAXFocusedUIElementAttribute),
-      ))
-      .map_err(|e| format!("Failed to resolve focused element: {e}"))?;
+    let focused: AXUIElement = system
+      .attribute(&AXAttribute::new(&CFString::from_static_string(
+        kAXFocusedUIElementAttribute,
+      )))
+      .map_err(|e| format!("Failed to resolve focused element: {e}"))?
+      .downcast()
+      .ok_or_else(|| "Failed to downcast focused element".to_string())?;
 
-    let value_attr = AXAttribute::<CFType>::value();
+    let value_attr = AXAttribute::<CFType>::new(&CFString::from_static_string("AXValue"));
     if !focused
       .is_settable(&value_attr)
       .map_err(|e| format!("Failed to inspect focused value mutability: {e}"))?
