@@ -33,7 +33,7 @@ pub fn ensure_overlay_window<R: Runtime>(app: &AppHandle<R>) -> Result<(), Strin
     return Ok(());
   }
 
-  let window =
+  let mut builder =
     WebviewWindowBuilder::new(app, OVERLAY_LABEL, WebviewUrl::App("overlay.html".into()))
       .title("Recording Overlay")
       .decorations(false)
@@ -41,10 +41,14 @@ pub fn ensure_overlay_window<R: Runtime>(app: &AppHandle<R>) -> Result<(), Strin
       .always_on_top(true)
       .skip_taskbar(true)
       .visible(false)
-      .shadow(false)
-      .transparent(true)
-      .build()
-      .map_err(|e: tauri::Error| e.to_string())?;
+      .shadow(false);
+
+  #[cfg(target_os = "windows")]
+  {
+    builder = builder.transparent(true);
+  }
+
+  let window = builder.build().map_err(|e: tauri::Error| e.to_string())?;
 
   let _ = window.set_always_on_top(true);
   let _ = window.set_focusable(false);
