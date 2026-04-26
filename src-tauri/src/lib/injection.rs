@@ -1,4 +1,6 @@
+#[cfg(not(target_os = "macos"))]
 use arboard::Clipboard;
+#[cfg(not(target_os = "macos"))]
 use enigo::{Direction, Enigo, Key, Keyboard, Settings};
 
 pub fn inject_text(text: &str, ignore_clipboard: bool) -> Result<(), String> {
@@ -18,7 +20,7 @@ pub fn inject_text(text: &str, ignore_clipboard: bool) -> Result<(), String> {
   #[cfg(target_os = "macos")]
   {
     let _ = ignore_clipboard;
-    inject_text_via_clipboard(text)
+    macos::inject_text_via_clipboard(text)
   }
 
   #[cfg(target_os = "linux")]
@@ -37,6 +39,7 @@ pub fn inject_text(text: &str, ignore_clipboard: bool) -> Result<(), String> {
   }
 }
 
+#[cfg(not(target_os = "macos"))]
 fn inject_text_via_clipboard(text: &str) -> Result<(), String> {
   let mut clipboard = Clipboard::new().map_err(|e| format!("Clipboard init failed: {e}"))?;
   clipboard
@@ -64,6 +67,47 @@ fn inject_text_via_clipboard(text: &str) -> Result<(), String> {
     .map_err(|e| e.to_string())?;
 
   Ok(())
+}
+
+#[cfg(target_os = "macos")]
+mod macos {
+  use std::io::Write;
+  use std::process::{Command, Stdio};
+
+  pub fn inject_text_via_clipboard(text: &str) -> Result<(), String> {
+    let mut pbcopy = Command::new("pbcopy")
+      .stdin(Stdio::piped())
+      .spawn()
+      .map_err(|e| format!("Failed to launch pbcopy: {e}"))?;
+
+    if let Some(stdin) = pbcopy.stdin.as_mut() {
+      stdin
+        .write_all(text.as_bytes())
+        .map_err(|e| format!("Failed to write clipboard content: {e}"))?;
+    } else {
+      return Err("Failed to open pbcopy stdin".to_string());
+    }
+
+    let pbcopy_status = pbcopy
+      .wait()
+      .map_err(|e| format!("Failed waiting for pbcopy: {e}"))?;
+    if !pbcopy_status.success() {
+      return Err("pbcopy failed to set clipboard content".to_string());
+    }
+
+    let output = Command::new("osascript")
+      .arg("-e")
+      .arg("tell application \"System Events\" to keystroke \"v\" using command down")
+      .output()
+      .map_err(|e| format!("Failed to run osascript: {e}"))?;
+
+    if !output.status.success() {
+      let stderr = String::from_utf8_lossy(&output.stderr);
+      return Err(format!("macOS paste keystroke failed: {}", stderr.trim()));
+    }
+
+    Ok(())
+  }
 }
 
 #[cfg(target_os = "windows")]
